@@ -63,6 +63,8 @@ struct _GstPipeWireSrc {
   gboolean use_camera;
   gint camera_id;
   gint orientation;
+
+  GstClockTime qos_delay;
 };
 
 G_END_DECLS

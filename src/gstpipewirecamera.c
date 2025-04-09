@@ -129,9 +129,10 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
   gboolean queue_full = (g_queue_get_length (camera->frame_queue) >= camera->max_queue_length);
   g_mutex_unlock (&camera->queue_mutex);
 
-  /* maybe we shouldn't skip? */
   if (queue_full) {
+    /* skip this frame since we already have more waiting */
     camera->frames_dropped++;
+    GST_LOG_OBJECT (camera, "Queue already has a frame, dropping this one");
     return;
   }
 
@@ -183,7 +184,7 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
       dst_u[i] = src_vu[i * 2 + 1]; /* U plane (second in NV21) */
     }
   } else {
-    uint8_t *temp_i420 = g_malloc(width * height * 3 / 2);
+    uint8_t *temp_i420 = g_malloc (width * height * 3 / 2);
     if (!temp_i420) {
       GST_ERROR_OBJECT (camera, "Failed to allocate temporary buffer for rotation");
       gst_buffer_unmap (buffer, &map);
@@ -241,16 +242,21 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
 
   gst_buffer_unmap (buffer, &map);
 
+  GstClockTime now = g_get_monotonic_time () * 1000;
+  GST_BUFFER_PTS (buffer) = now;
+  GST_BUFFER_DTS (buffer) = GST_CLOCK_TIME_NONE;
+  GST_BUFFER_DURATION (buffer) = GST_SECOND / camera->fps;
+
   g_mutex_lock (&camera->queue_mutex);
 
-  /* don't unref - queue takes ownership */
   g_queue_push_tail (camera->frame_queue, buffer);
-  g_mutex_unlock (&camera->queue_mutex);
 
   droid_media_camera_start_auto_focus (camera->camera);
 
   GST_LOG_OBJECT (camera, "Added frame to queue, length now: %u",
                   g_queue_get_length(camera->frame_queue));
+
+  g_mutex_unlock (&camera->queue_mutex);
 }
 
 static gboolean
@@ -420,7 +426,7 @@ gst_pipewire_camera_get_latest_frame (GstPipeWireCamera *camera)
     /* no need to ref the buffer, as we're transferring ownership */
     buffer = GST_BUFFER (g_queue_pop_head (camera->frame_queue));
 
-  g_mutex_unlock(&camera->queue_mutex);
+  g_mutex_unlock (&camera->queue_mutex);
 
   return buffer;
 }

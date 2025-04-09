@@ -170,9 +170,22 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
   GstClockTime timestamp;
   static GstBuffer *last_buffer = NULL;
   static GstClockTime previous_ts = 0;
+  static GstClockTime last_push_time = 0;
   guint size = 0;
 
   pwsrc = GST_PIPEWIRE_SRC (psrc);
+
+  GstClockTime now = gst_util_get_timestamp ();
+
+  /* add a small delay between frames to allow gtk4paintablesink to catch up */
+  if (last_push_time != 0) {
+    GstClockTime elapsed = now - last_push_time;
+
+    if (elapsed < 10000000) {
+      g_usleep (10000);
+      GST_LOG_OBJECT (pwsrc, "Adding small delay to help sink keep up");
+    }
+  }
 
   timestamp = gst_clock_get_time (GST_ELEMENT_CLOCK (GST_ELEMENT (psrc)));
   if (GST_CLOCK_TIME_IS_VALID (timestamp))
@@ -205,18 +218,18 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
       guint size = width * height * 3 / 2; /* YUV 4:2:0 format */
       buf = gst_buffer_new_allocate (NULL, size, NULL);
       if (!buf) {
-        GST_ERROR_OBJECT(pwsrc, "Failed to allocate buffer");
+        GST_ERROR_OBJECT (pwsrc, "Failed to allocate buffer");
         return GST_FLOW_ERROR;
       }
 
       GstMapInfo info;
-      gst_buffer_map(buf, &info, GST_MAP_WRITE);
+      gst_buffer_map (buf, &info, GST_MAP_WRITE);
 
       /* Y=16, U=V=128 */
-      memset(info.data, 16, width * height); /* Y plane */
-      memset(info.data + width * height, 128, size - width * height); /* UV planes */
+      memset (info.data, 16, width * height); /* Y plane */
+      memset (info.data + width * height, 128, size - width * height); /* UV planes */
 
-      gst_buffer_unmap(buf, &info);
+      gst_buffer_unmap (buf, &info);
     }
 
     if (buf) {
@@ -227,9 +240,11 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
         GST_BUFFER_DURATION (buf) = timestamp - previous_ts;
       else
         /* default to 30fps if we don't know */
-        GST_BUFFER_DURATION (buf) = 33333333;
+        GST_BUFFER_DURATION (buf) = GST_SECOND / 30;
 
+      /* keep track of when we are pushing a frame */
       previous_ts = timestamp;
+      last_push_time = now;
 
       *buffer = buf;
       return GST_FLOW_OK;
@@ -257,9 +272,10 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
     if (GST_CLOCK_TIME_IS_VALID (previous_ts) && previous_ts != 0)
       GST_BUFFER_DURATION (buf) = timestamp - previous_ts;
     else
-      GST_BUFFER_DURATION (buf) = 33333333;
+      GST_BUFFER_DURATION (buf) = GST_SECOND / 30;
 
     previous_ts = timestamp;
+    last_push_time = now;
   }
 
   *buffer = buf;
@@ -306,6 +322,23 @@ gst_pipewire_src_event (GstBaseSrc *src, GstEvent *event)
 
         res = TRUE;
       } else {
+        res = GST_BASE_SRC_CLASS (parent_class)->event (src, event);
+      }
+      break;
+    case GST_EVENT_QOS:
+      {
+        gdouble proportion;
+        GstClockTimeDiff diff;
+        GstClockTime timestamp;
+
+        gst_event_parse_qos (event, NULL, &proportion, &diff, &timestamp);
+
+        if (diff < 0)
+          /* we're running ahead, maybe slow down */
+          GST_DEBUG_OBJECT (src, "QoS: we're ahead by %" GST_TIME_FORMAT, GST_TIME_ARGS (-diff));
+        else
+          GST_DEBUG_OBJECT (src, "QoS: we're behind by %" GST_TIME_FORMAT, GST_TIME_ARGS (diff));
+
         res = GST_BASE_SRC_CLASS (parent_class)->event (src, event);
       }
       break;
@@ -1008,4 +1041,8 @@ gst_pipewire_src_init (GstPipeWireSrc *src)
   src->camera_id = DEFAULT_CAMERA_ID;
   src->camera = NULL;
   src->orientation = 0;
+  src->qos_delay = 0;
+
+  gst_base_src_set_blocksize (GST_BASE_SRC (src), 0);
+  gst_base_src_set_do_timestamp (GST_BASE_SRC (src), TRUE);
 }
