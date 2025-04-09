@@ -7,6 +7,8 @@
 #ifndef __GST_PIPEWIRE_SHARED_H__
 #define __GST_PIPEWIRE_SHARED_H__
 
+#include <stdio.h>
+
 typedef enum {
     USE_BUFFERPOOL_NO = 0,
     USE_BUFFERPOOL_AUTO,

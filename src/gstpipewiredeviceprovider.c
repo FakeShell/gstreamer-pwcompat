@@ -294,10 +294,10 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
     gst_structure_set (props, "orientation", G_TYPE_INT, info.orientation, NULL);
 
     gchar *name;
-    if (info.facing == 0)
-      name = g_strdup_printf ("Back Camera %d", i);
-    else
+    if (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT)
       name = g_strdup_printf ("Front Camera %d", i);
+    else
+      name = g_strdup_printf ("Back Camera %d", i);
 
     GST_DEBUG_OBJECT (self, "Creating camera device %s with orientation %d",
                       name, info.orientation);

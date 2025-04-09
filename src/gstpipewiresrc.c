@@ -71,12 +71,28 @@ gst_pipewire_src_change_state (GstElement *element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       if (self->use_camera) {
+        /* get the camera ID from target-object if set */
+        if (self->stream->target_object != NULL) {
+          gint target_id = -1;
+          if (sscanf (self->stream->target_object, "%d", &target_id) == 1 && target_id >= 0) {
+            GST_DEBUG_OBJECT (self, "Using camera ID %d from target-object", target_id);
+            self->camera_id = target_id;
+          } else {
+            GST_WARNING_OBJECT (self, "Invalid target-object '%s', using default camera ID %d",
+                                self->stream->target_object, self->camera_id);
+          }
+        }
+
         if (!self->camera) {
           self->camera = gst_pipewire_camera_new (self);
           if (!self->camera) {
             GST_ERROR_OBJECT (self, "Failed to create camera object");
             return GST_STATE_CHANGE_FAILURE;
           }
+
+          /* set the camera ID in the camera object */
+          self->camera->camera_id = self->camera_id;
+          GST_INFO_OBJECT (self, "Opening camera with ID: %d", self->camera_id);
         }
 
         if (!gst_pipewire_camera_open (self->camera)) {
