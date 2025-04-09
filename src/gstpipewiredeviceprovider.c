@@ -168,6 +168,11 @@ gst_pipewire_device_set_property (GObject *object, guint prop_id,
 static void
 gst_pipewire_device_finalize (GObject *object)
 {
+  GstPipeWireDevice *device = GST_PIPEWIRE_DEVICE_CAST (object);
+
+  GST_DEBUG_OBJECT (device, "Finalizing device %s",
+                    gst_device_get_display_name (GST_DEVICE (device)));
+
   G_OBJECT_CLASS (gst_pipewire_device_parent_class)->finalize (object);
 }
 
@@ -257,6 +262,11 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
 
   GST_DEBUG_OBJECT (self, "Found %d DroidMedia cameras", camera_count);
 
+  if (self->devices) {
+    g_list_free (self->devices);
+    self->devices = NULL;
+  }
+
   for (int i = 0; i < camera_count; i++) {
     DroidMediaCameraInfo info;
     droid_media_camera_get_info (&info, i);
@@ -318,10 +328,14 @@ static GList *
 gst_pipewire_device_provider_probe (GstDeviceProvider *provider)
 {
   GstPipeWireDeviceProvider *self = GST_PIPEWIRE_DEVICE_PROVIDER (provider);
+  GList *result = NULL;
 
   GST_DEBUG_OBJECT (self, "Starting device probe");
 
-  self->devices = NULL;
+  if (self->devices) {
+    g_list_free (self->devices);
+    self->devices = NULL;
+  }
 
   create_camera_devices (self);
 
@@ -342,9 +356,11 @@ gst_pipewire_device_provider_probe (GstDeviceProvider *provider)
     }
 
     gst_caps_unref (caps);
+
+    result = g_list_append (result, gst_object_ref(device));
   }
 
-  return self->devices;
+  return result;
 }
 
 static gboolean
@@ -371,7 +387,9 @@ gst_pipewire_device_provider_stop (GstDeviceProvider *provider)
 
   GST_DEBUG_OBJECT (self, "stopping provider");
 
-  g_list_free_full (self->devices, g_object_unref);
+  /* we should not unref devices here, they are managed
+   * by the device provider framework. just clear our list reference. */
+  g_list_free (self->devices);
   self->devices = NULL;
 }
 
@@ -427,7 +445,10 @@ gst_pipewire_device_provider_finalize (GObject *object)
   GstPipeWireDeviceProvider *self = GST_PIPEWIRE_DEVICE_PROVIDER (object);
 
   g_free (self->client_name);
-  g_list_free_full (self->devices, g_object_unref);
+  if (self->devices) {
+    g_list_free (self->devices);
+    self->devices = NULL;
+  }
 
   G_OBJECT_CLASS (gst_pipewire_device_provider_parent_class)->finalize (object);
 }
