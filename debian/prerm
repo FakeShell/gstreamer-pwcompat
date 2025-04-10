@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+TRIPLET=$(awk 'BEGIN { FS = "[ ()-]"; "bash --version" | getline; OFS = "-"; if (/bash/) print $9, $11, $12 }')
+DIVERSION_DIR="/usr/lib/furios/diversions/gstreamer-1.0"
+SOURCE_PATH="/usr/lib/$TRIPLET/gstreamer-1.0/libgstpipewire.so"
+DIVERSION_PATH="$DIVERSION_DIR/libgstpipewire.so"
+
+remove() {
+	if dpkg-divert --list | grep -q libgstpipewire.so; then
+		# If the diverted file exists, restore it
+		if [ -e "$DIVERSION_PATH" ]; then
+			rm -f "$SOURCE_PATH"
+
+			dpkg-divert \
+				--rename \
+				--package gstreamer1.0-pwcompat \
+				--divert "$DIVERSION_PATH" \
+				--remove "$SOURCE_PATH"
+		fi
+	fi
+}
+
+case "$1" in
+	"remove")
+		remove
+		;;
+esac

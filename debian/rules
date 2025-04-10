@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+TRIPLET := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+BUILD_DIR := obj-$(TRIPLET)
+INSTALL_DIR := debian/gstreamer1.0-pwcompat/usr/lib/$(TRIPLET)/gstreamer-pwcompat
+
+%:
+	dh $@
+
+override_dh_auto_install:
+override_dh_install:
+	# we want to override mesons install target so that we can copy it elsewhere and use diversions
+	mkdir -p $(INSTALL_DIR)
+	cp -f $(BUILD_DIR)/src/libgstpipewire.so $(INSTALL_DIR)/
