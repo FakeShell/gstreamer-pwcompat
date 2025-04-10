@@ -1,6 +1,6 @@
 project('gstpipewire', 'c',
   version : '1.0.0',
-  meson_version : '>= 0.50.0',
+  meson_version : '>= 0.51.0',
   default_options : ['warning_level=2', 'buildtype=debugoptimized']
 )
 
@@ -15,8 +15,8 @@ gst_audio_dep = dependency('gstreamer-audio-1.0', version : gst_req)
 gst_allocators_dep = dependency('gstreamer-allocators-1.0', version : gst_req)
 
 droidmedia_dep = dependency('droidmedia', required : true)
-libyuv_dep = cc.find_library('yuv', required : true)
 threads_dep = dependency('threads', required : true)
+libyuv_dep = cc.find_library('yuv', static : true, required : true)
 
 mathlib = cc.find_library('m', required : false)
 
