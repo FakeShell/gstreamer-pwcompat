@@ -33,8 +33,8 @@ plugin_init (GstPlugin *plugin)
   return TRUE;
 }
 
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
+GST_PLUGIN_DEFINE (1,
+    24,
     pipewire,
     "Uses PipeWire to handle media streams",
     plugin_init, VERSION, "MIT/X11", "pipewire", "pipewire.org")
