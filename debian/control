@@ -28,3 +28,11 @@ Description: GStreamer 1.0 plugin for the PipeWire multimedia server compatibili
  .
  This package contains a plugin to make devices managed by the PipeWire
  server available as GStreamer sources and sinks.
+
+Package: flatpak-extension-gstreamer-pwcompat
+Architecture: any
+Depends: gstreamer1.0-pwcompat (= ${binary:Version}),
+Recommends: flatpak-hybris
+Description: GStreamer 1.0 PipeWire compatibility plugin extension for org.freedesktop.Platform.GStreamer runtime
+ This package contains gstreamer's pipewire compatibility library shipped as an
+ extension of org.freedesktop.Platform.GStreamer.

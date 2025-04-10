@@ -1,8 +1,26 @@
 #!/usr/bin/make -f
 
-TRIPLET := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
-BUILD_DIR := obj-$(TRIPLET)
-INSTALL_DIR := debian/gstreamer1.0-pwcompat/usr/lib/$(TRIPLET)/gstreamer-pwcompat
+include /usr/share/dpkg/pkg-info.mk
+include /usr/share/dpkg/architecture.mk
+
+export TRIPLET := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+export BUILD_DIR := obj-$(TRIPLET)
+export HOST_INSTALL_DIR := debian/gstreamer1.0-pwcompat/usr/lib/$(TRIPLET)/gstreamer-pwcompat
+
+ifeq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), armhf))
+FLATPAK_ARCH = arm
+endif
+ifeq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), arm64))
+FLATPAK_ARCH = aarch64
+endif
+ifeq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), i386))
+FLATPAK_ARCH = x86
+endif
+ifeq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), amd64))
+FLATPAK_ARCH = x86_64
+endif
+
+export FLATPAK_EXTENSION_INSTALL_DIR := debian/flatpak-extension-gstreamer-pwcompat/var/lib/flatpak/extension/org.freedesktop.Platform.GStreamer.pwcompat/$(FLATPAK_ARCH)/24.08
 
 %:
 	dh $@
@@ -10,5 +28,6 @@ INSTALL_DIR := debian/gstreamer1.0-pwcompat/usr/lib/$(TRIPLET)/gstreamer-pwcompa
 override_dh_auto_install:
 override_dh_install:
 	# we want to override mesons install target so that we can copy it elsewhere and use diversions
-	mkdir -p $(INSTALL_DIR)
-	cp -f $(BUILD_DIR)/src/libgstpipewire.so $(INSTALL_DIR)/
+	mkdir -p $(HOST_INSTALL_DIR) $(FLATPAK_EXTENSION_INSTALL_DIR)
+	cp -f $(BUILD_DIR)/src/libgstpipewire.so $(HOST_INSTALL_DIR)/
+	cp $(BUILD_DIR)/src/libgstpipewire.so $(FLATPAK_EXTENSION_INSTALL_DIR)/
