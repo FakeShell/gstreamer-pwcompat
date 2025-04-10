@@ -153,7 +153,11 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
   int rotated_width = width;
   int rotated_height = height;
 
-  if (camera->rotation == 90 || camera->rotation == 270) {
+  int final_rotation = camera->rotation;
+  if (camera->user_orientation != 0)
+    final_rotation = camera->user_orientation;
+
+  if (final_rotation == 90 || final_rotation == 270) {
     rotated_width = height;
     rotated_height = width;
   }
@@ -170,7 +174,7 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
   GstMapInfo map;
   gst_buffer_map (buffer, &map, GST_MAP_WRITE);
 
-  if (camera->rotation == 0) {
+  if (final_rotation == 0) {
     memcpy (map.data, data->data, y_size);
 
     /* convert from NV21 (VU interleaved) to I420 (planar) */
@@ -214,7 +218,7 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
     int dst_stride_uv = rotated_width / 2;
 
     enum RotationMode mode;
-    switch (camera->rotation) {
+    switch (final_rotation) {
       case 90:
         mode = kRotate90;
         break;
@@ -407,6 +411,7 @@ gst_pipewire_camera_init (GstPipeWireCamera *camera)
   camera->height = DEFAULT_CAMERA_HEIGHT;
   camera->fps = DEFAULT_CAMERA_FPS;
   camera->rotation = 0;
+  camera->user_orientation = 0;
   camera->is_running = FALSE;
   camera->frames_received = 0;
   camera->frames_dropped = 0;
@@ -571,13 +576,28 @@ gst_pipewire_camera_set_format (GstPipeWireCamera *camera, GstCaps *caps)
 }
 
 void
+gst_pipewire_camera_set_orientation (GstPipeWireCamera *camera, gint orientation)
+{
+  GST_DEBUG_OBJECT (camera, "Setting user orientation to %d (was %d)",
+                    orientation, camera->user_orientation);
+
+  camera->user_orientation = orientation;
+
+  if (camera->is_running) {
+    GST_DEBUG_OBJECT (camera, "Restarting camera to apply new orientation");
+    gst_pipewire_camera_stop (camera);
+    gst_pipewire_camera_start (camera);
+  }
+}
+
+void
 gst_pipewire_camera_get_info (GstPipeWireCamera *camera,
-                                 gint *width, gint *height, gint *rotation)
+                              gint *width, gint *height, gint *rotation)
 {
   if (width)
     *width = camera->width;
   if (height)
     *height = camera->height;
   if (rotation)
-    *rotation = camera->rotation;
+    *rotation = (camera->user_orientation != 0) ? camera->user_orientation : camera->rotation;
 }

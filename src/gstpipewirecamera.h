@@ -40,6 +40,7 @@ struct _GstPipeWireCamera {
   int width;
   int height;
   int rotation;
+  int user_orientation;
   int fps;
 
   pthread_mutex_t buffer_lock;
@@ -68,9 +69,10 @@ void gst_pipewire_camera_stop_streaming (GstPipeWireCamera *camera);
 GstCaps *gst_pipewire_camera_get_caps (GstPipeWireCamera *camera);
 gboolean gst_pipewire_camera_set_format (GstPipeWireCamera *camera, GstCaps *caps);
 void gst_pipewire_camera_get_info (GstPipeWireCamera *camera,
-                                      gint *width, gint *height, gint *rotation);
+                                   gint *width, gint *height, gint *rotation);
 
 GstBuffer *gst_pipewire_camera_get_latest_frame (GstPipeWireCamera *camera);
+void gst_pipewire_camera_set_orientation (GstPipeWireCamera *camera, gint orientation);
 
 G_END_DECLS
 

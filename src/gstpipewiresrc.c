@@ -467,6 +467,8 @@ gst_pipewire_src_set_property (GObject *object, guint prop_id,
       break;
     case PROP_ORIENTATION:
       pwsrc->orientation = g_value_get_int (value);
+      if (pwsrc->camera)
+        gst_pipewire_camera_set_orientation (pwsrc->camera, pwsrc->orientation);
       GST_DEBUG_OBJECT (pwsrc, "Setting orientation to %d degrees", pwsrc->orientation);
       break;
     default:
