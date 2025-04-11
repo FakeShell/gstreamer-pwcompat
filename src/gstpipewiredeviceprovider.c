@@ -246,6 +246,7 @@ static void
 create_camera_devices (GstPipeWireDeviceProvider *self)
 {
   static gboolean droidmedia_initialized = FALSE;
+  int current_front_count = 0, current_back_count = 0, front_camera_count = 0, back_camera_count = 0;
 
   if (!droidmedia_initialized) {
     droid_media_init ();
@@ -265,6 +266,16 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
   if (self->devices) {
     g_list_free (self->devices);
     self->devices = NULL;
+  }
+
+  for (int i = 0; i < camera_count; i++) {
+    DroidMediaCameraInfo info;
+    droid_media_camera_get_info (&info, i);
+
+    if (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT)
+      front_camera_count++;
+    else
+      back_camera_count++;
   }
 
   for (int i = 0; i < camera_count; i++) {
@@ -294,20 +305,37 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
 
     gst_caps_append_structure (caps, jpeg_struct);
 
-    GstStructure *props = gst_structure_new ("droidmedia-proplist",
+    GstStructure *props = gst_structure_new ("pipewire-proplist",
                                              "camera-id", G_TYPE_INT, i,
-                                             "camera-facing", G_TYPE_INT, info.facing,
-                                             "camera-orientation", G_TYPE_INT, info.orientation,
+                                             "api.libcamera.location", G_TYPE_STRING,
+                                             (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT) ? "front" : "back",
+                                             "api.libcamera.rotation", G_TYPE_INT, info.orientation,
                                              "is-default", G_TYPE_BOOLEAN, (i == 0),
                                              NULL);
 
-    gst_structure_set (props, "orientation", G_TYPE_INT, info.orientation, NULL);
-
+    gst_structure_set (props,
+                       "device.api", G_TYPE_STRING, "libcamera",
+                       "media.class", G_TYPE_STRING, "Video/Source",
+                       "node.pause-on-idle", G_TYPE_BOOLEAN, FALSE,
+                       NULL);
     gchar *name;
-    if (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT)
-      name = g_strdup_printf ("Front Camera %d", i);
-    else
-      name = g_strdup_printf ("Back Camera %d", i);
+    if (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT) {
+      current_front_count++;
+      if (front_camera_count == 1)
+        name = g_strdup_printf ("Front Camera");
+      else
+        name = g_strdup_printf ("Front Camera %d", current_front_count);
+    } else {
+      current_back_count++;
+      if (back_camera_count == 1)
+        name = g_strdup_printf ("Back Camera");
+      else
+        name = g_strdup_printf ("Back Camera %d", current_back_count);
+    }
+
+    gchar *object_path = g_strdup_printf ("libcamera:camera%d", i);
+    gst_structure_set (props, "object.path", G_TYPE_STRING, object_path, NULL);
+    g_free (object_path);
 
     GST_DEBUG_OBJECT (self, "Creating camera device %s with orientation %d",
                       name, info.orientation);
