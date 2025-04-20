@@ -11,6 +11,10 @@ configure() {
 	if ! dpkg-divert --list | grep -q libgstpipewire.so; then
 		mkdir -p "$DIVERSION_DIR"
 
+		if [ -f "$DIVERSION_PATH" ]; then
+			rm -f "$DIVERSION_PATH"
+		fi
+
 		dpkg-divert \
 			--rename \
 			--package gstreamer1.0-pwcompat \
