@@ -31,3 +31,6 @@ override_dh_install:
 	mkdir -p $(HOST_INSTALL_DIR) $(FLATPAK_EXTENSION_INSTALL_DIR)
 	cp -f $(BUILD_DIR)/src/libgstpipewire.so $(HOST_INSTALL_DIR)/
 	cp $(BUILD_DIR)/src/libgstpipewire.so $(FLATPAK_EXTENSION_INSTALL_DIR)/
+
+override_dh_strip:
+	dh_strip -Nflatpak-extension-gstreamer-pwcompat
