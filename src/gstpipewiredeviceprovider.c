@@ -314,7 +314,7 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
                                              "node.name", G_TYPE_STRING, node_name,
                                              "node.nick", G_TYPE_STRING, "droidmedia",
                                              "node.pause-on-idle", G_TYPE_BOOLEAN, FALSE,
-                                             "object.patch", G_TYPE_STRING, object_path,
+                                             "object.path", G_TYPE_STRING, object_path,
                                              "priority.session", G_TYPE_INT, 800,
                                              "factory.id", G_TYPE_INT, 10,
                                              "client.id", G_TYPE_INT, 50,
