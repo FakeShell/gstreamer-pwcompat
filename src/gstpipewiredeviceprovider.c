@@ -305,7 +305,7 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
                                              "api.libcamera.rotation", G_TYPE_INT, info.orientation,
                                              "device.api", G_TYPE_STRING, "libcamera",
                                              "device.description", G_TYPE_STRING, "droidmedia",
-                                             "device.id", G_TYPE_INT, camera_count,
+                                             "device.id", G_TYPE_INT, i,
                                              "device.name", G_TYPE_STRING, device_name,
                                              "device.product.name", G_TYPE_STRING, "droidmedia",
                                              "factory.name", G_TYPE_STRING, "api.libcamera.source",
@@ -322,6 +322,8 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
                                              "node.loop.name", G_TYPE_STRING, "data-loop.0",
                                              "media.role", G_TYPE_STRING, "Camera",
                                              "node.driver", G_TYPE_BOOLEAN, TRUE,
+                                             "object.id", G_TYPE_INT, i,
+                                             "object.serial", G_TYPE_INT, i,
                                              NULL);
     g_autofree char *name;
     if (info.facing == DROID_MEDIA_CAMERA_FACING_FRONT) {
