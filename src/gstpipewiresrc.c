@@ -186,11 +186,26 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
       g_usleep (10000);
   }
 
-  timestamp = gst_clock_get_time (GST_ELEMENT_CLOCK (GST_ELEMENT (psrc)));
-  if (GST_CLOCK_TIME_IS_VALID (timestamp))
-    timestamp -= gst_element_get_base_time (GST_ELEMENT (psrc));
-  else
-    timestamp = GST_CLOCK_TIME_NONE;
+  timestamp = GST_CLOCK_TIME_NONE;
+  GstClock *clock = GST_ELEMENT_CLOCK (GST_ELEMENT (psrc));
+  if (clock) {
+    GstClockTime t = gst_clock_get_time (clock);
+    if (GST_CLOCK_TIME_IS_VALID (t)) {
+      GstClockTime base = gst_element_get_base_time (GST_ELEMENT (psrc));
+      if (GST_CLOCK_TIME_IS_VALID (base) && t > base)
+        timestamp = t - base;
+      else
+        timestamp = t;
+    }
+  }
+
+  if (!GST_CLOCK_TIME_IS_VALID (timestamp)) {
+    GstClockTime base = gst_element_get_base_time (GST_ELEMENT (psrc));
+    if (GST_CLOCK_TIME_IS_VALID (base) && now > base)
+      timestamp = now - base;
+    else
+      timestamp = now;
+  }
 
   if (pwsrc->use_camera && pwsrc->camera) {
     buf = gst_pipewire_camera_get_latest_frame (pwsrc->camera);
@@ -244,7 +259,7 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
       GST_BUFFER_PTS (buf) = timestamp;
       GST_BUFFER_DTS (buf) = GST_CLOCK_TIME_NONE;
 
-      if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0)
+      if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0 && timestamp > pwsrc->previous_ts)
         GST_BUFFER_DURATION (buf) = timestamp - pwsrc->previous_ts;
       else
         /* default to 30fps if we don't know */
@@ -283,17 +298,19 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
     GST_BUFFER_PTS (buf) = timestamp;
     GST_BUFFER_DTS (buf) = GST_CLOCK_TIME_NONE;
 
-    if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0)
+    if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0 &&
+        timestamp > pwsrc->previous_ts) {
       GST_BUFFER_DURATION (buf) = timestamp - pwsrc->previous_ts;
-    else
+    } else {
       GST_BUFFER_DURATION (buf) = GST_SECOND / 30;
+    }
 
     pwsrc->previous_ts = timestamp;
     pwsrc->last_push_time = now;
-  }
 
-  *buffer = buf;
-  return GST_FLOW_OK;
+    *buffer = buf;
+    return GST_FLOW_OK;
+  }
 }
 
 static gboolean
@@ -608,17 +625,6 @@ gst_pipewire_src_get_caps (GstBaseSrc *basesrc, GstCaps *filter)
 
   GstStructure *structure = gst_structure_new ("video/x-raw",
       "format", G_TYPE_STRING, "I420",
-      "width", GST_TYPE_INT_RANGE, 160, 1920,
-      "height", GST_TYPE_INT_RANGE, 120, 1920,
-      "framerate", GST_TYPE_FRACTION_RANGE, 1, 1, 30, 1,
-      "interlace-mode", G_TYPE_STRING, "progressive",
-      "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-      "colorimetry", G_TYPE_STRING, "bt709",
-      NULL);
-  gst_caps_append_structure (caps, structure);
-
-  structure = gst_structure_new ("video/x-raw",
-      "format", G_TYPE_STRING, "NV12",
       "width", GST_TYPE_INT_RANGE, 160, 1920,
       "height", GST_TYPE_INT_RANGE, 120, 1920,
       "framerate", GST_TYPE_FRACTION_RANGE, 1, 1, 30, 1,

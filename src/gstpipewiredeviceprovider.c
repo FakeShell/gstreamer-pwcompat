@@ -283,15 +283,6 @@ create_camera_devices (GstPipeWireDeviceProvider *self)
 
     gst_caps_append_structure (caps, raw_struct);
 
-    GstStructure *jpeg_struct = gst_structure_new_empty ("image/jpeg");
-    gst_structure_set (jpeg_struct,
-                       "width", GST_TYPE_INT_RANGE, 320, 1920,
-                       "height", GST_TYPE_INT_RANGE, 240, 1920,
-                       "framerate", GST_TYPE_FRACTION_RANGE, 1, 1, 30, 1,
-                       NULL);
-
-    gst_caps_append_structure (caps, jpeg_struct);
-
     g_autofree char *device_name = g_strdup_printf ("libcamera_device.camera%d", i);
     g_autofree char *node_name = g_strdup_printf ("libcamera_input.camera%d", i);
     g_autofree char *object_path = g_strdup_printf ("libcamera:camera%d", i);
