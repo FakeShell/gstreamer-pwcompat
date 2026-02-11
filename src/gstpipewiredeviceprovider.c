@@ -106,7 +106,7 @@ gst_pipewire_device_reconfigure_element (GstDevice *device, GstElement *element)
 
 static void
 gst_pipewire_device_get_property (GObject *object, guint prop_id,
-                                     GValue *value, GParamSpec *pspec)
+                                  GValue *value, GParamSpec *pspec)
 {
   GstPipeWireDevice *device;
 
@@ -130,7 +130,7 @@ gst_pipewire_device_get_property (GObject *object, guint prop_id,
 
 static void
 gst_pipewire_device_set_property (GObject *object, guint prop_id,
-                                     const GValue * value, GParamSpec *pspec)
+                                  const GValue * value, GParamSpec *pspec)
 {
   GstPipeWireDevice *device;
 
@@ -210,8 +210,8 @@ enum
 
 static GstPipeWireDevice *
 gst_pipewire_device_new (int fd, uint32_t id, uint64_t serial, GstPipeWireDeviceType type,
-                            const gchar *element, int priority, const gchar *klass,
-                            const gchar *display_name, const GstCaps *caps, const GstStructure *props)
+                         const gchar *element, int priority, const gchar *klass,
+                         const gchar *display_name, const GstCaps *caps, const GstStructure *props)
 {
   GstPipeWireDevice *gstdev;
 

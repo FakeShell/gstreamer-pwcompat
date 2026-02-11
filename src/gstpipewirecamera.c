@@ -103,6 +103,7 @@ gst_pipewire_camera_finalize (GObject *object)
     gst_pipewire_camera_stop (camera);
 
   g_mutex_clear (&camera->queue_mutex);
+
   pthread_mutex_destroy (&camera->buffer_lock);
 
   if (camera->frame_queue) {
@@ -233,15 +234,15 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
         break;
     }
 
-    I420Rotate(temp_i420, src_stride_y,
-               temp_u, src_stride_uv,
-               temp_v, src_stride_uv,
-               dst_y, dst_stride_y,
-               dst_u, dst_stride_uv,
-               dst_v, dst_stride_uv,
-               width, height, mode);
+    I420Rotate (temp_i420, src_stride_y,
+                temp_u, src_stride_uv,
+                temp_v, src_stride_uv,
+                dst_y, dst_stride_y,
+                dst_u, dst_stride_uv,
+                dst_v, dst_stride_uv,
+                width, height, mode);
 
-    g_free(temp_i420);
+    g_free (temp_i420);
   }
 
   gst_buffer_unmap (buffer, &map);
@@ -258,7 +259,7 @@ preview_frame_callback (void *userdata, DroidMediaData *data)
   droid_media_camera_start_auto_focus (camera->camera);
 
   GST_LOG_OBJECT (camera, "Added frame to queue, length now: %u",
-                  g_queue_get_length(camera->frame_queue));
+                  g_queue_get_length (camera->frame_queue));
 
   g_mutex_unlock (&camera->queue_mutex);
 }
@@ -297,7 +298,7 @@ gst_pipewire_camera_init_camera (GstPipeWireCamera *camera)
   GST_DEBUG_OBJECT (camera, "Current parameters: %s", current_params);
 
   if (get_parameter_value (current_params, "preview-size-values",
-                           supported_sizes, sizeof(supported_sizes))) {
+                           supported_sizes, sizeof (supported_sizes))) {
     GST_DEBUG_OBJECT (camera, "Supported preview sizes: %s", supported_sizes);
 
     char *sizes = strdup (supported_sizes);
@@ -323,9 +324,9 @@ gst_pipewire_camera_init_camera (GstPipeWireCamera *camera)
       }
       token = strtok (NULL, ",");
     }
-    free(sizes);
+    free (sizes);
   } else {
-    GST_WARNING_OBJECT(camera, "Could not get supported preview sizes");
+    GST_WARNING_OBJECT (camera, "Could not get supported preview sizes");
   }
 
   /* swap width and height for rotated output */
@@ -350,7 +351,7 @@ gst_pipewire_camera_init_camera (GstPipeWireCamera *camera)
 
     sprintf (parameter_buffer, "preview-format=yuv420sp");
     if (!droid_media_camera_set_parameters (camera->camera, parameter_buffer))
-      // continue anyway as the format may be set automatically
+      /* continue anyway as the format may be set automatically */
       GST_WARNING_OBJECT (camera, "Failed to set preview format to yuv420sp");
   }
 
@@ -359,7 +360,7 @@ gst_pipewire_camera_init_camera (GstPipeWireCamera *camera)
   int actual_height = camera->height;
 
   char *actual_params = droid_media_camera_get_parameters (camera->camera);
-  if (get_parameter_value (actual_params, "preview-size", size_value, sizeof(size_value))) {
+  if (get_parameter_value (actual_params, "preview-size", size_value, sizeof (size_value))) {
     sscanf (size_value, "%dx%d", &actual_width, &actual_height);
     GST_INFO_OBJECT (camera, "Camera is using preview size: %dx%d", actual_width, actual_height);
 
@@ -374,7 +375,7 @@ gst_pipewire_camera_init_camera (GstPipeWireCamera *camera)
       gst_video_info_set_format (&camera->video_info, GST_VIDEO_FORMAT_I420,
                                  camera->width, camera->height);
   }
-  free(actual_params);
+  free (actual_params);
 
   droid_media_camera_set_preview_callback_flags (camera->camera,
       CAMERA_CONSTANTS.CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK);
@@ -467,7 +468,7 @@ gst_pipewire_camera_open (GstPipeWireCamera *camera)
     return TRUE;
   }
 
-  if (!gst_pipewire_camera_init_camera(camera)) {
+  if (!gst_pipewire_camera_init_camera (camera)) {
     GST_ERROR_OBJECT (camera, "Failed to initialize camera");
     return FALSE;
   }
@@ -480,8 +481,6 @@ gst_pipewire_camera_close (GstPipeWireCamera *camera)
 {
   if (camera->is_running)
     gst_pipewire_camera_stop (camera);
-
-  pthread_mutex_destroy (&camera->buffer_lock);
 
   GST_DEBUG_OBJECT (camera, "Camera closed");
 }

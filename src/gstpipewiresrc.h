@@ -23,7 +23,6 @@ G_BEGIN_DECLS
 #define GST_PIPEWIRE_SRC_CAST(obj) ((GstPipeWireSrc *) (obj))
 G_DECLARE_FINAL_TYPE (GstPipeWireSrc, gst_pipewire_src, GST, PIPEWIRE_SRC, GstPushSrc)
 
-
 /**
  * GstPipeWireSrc:
  *
@@ -58,6 +57,9 @@ struct _GstPipeWireSrc {
   GstClockTime max_latency;
 
   GstBuffer *last_buffer;
+
+  GstClockTime previous_ts;
+  GstClockTime last_push_time;
 
   GstPipeWireCamera *camera;
   gboolean use_camera;

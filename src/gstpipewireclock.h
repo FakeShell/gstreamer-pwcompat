@@ -27,9 +27,9 @@ struct _GstPipeWireClock {
 };
 
 GstClock *      gst_pipewire_clock_new           (GstPipeWireStream *stream,
-                                                     GstClockTime last_time);
+                                                  GstClockTime last_time);
 void            gst_pipewire_clock_reset         (GstPipeWireClock *clock,
-                                                     GstClockTime time);
+                                                  GstClockTime time);
 
 G_END_DECLS
 

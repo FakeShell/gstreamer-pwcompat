@@ -165,26 +165,25 @@ gst_pipewire_src_send_event (GstElement *elem, GstEvent *event)
 static GstFlowReturn
 gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
 {
-  GstPipeWireSrc *pwsrc;
+  GstPipeWireSrc *pwsrc = GST_PIPEWIRE_SRC (psrc);
   GstBuffer *buf = NULL;
   GstClockTime timestamp;
-  static GstBuffer *last_buffer = NULL;
-  static GstClockTime previous_ts = 0;
-  static GstClockTime last_push_time = 0;
   guint size = 0;
 
-  pwsrc = GST_PIPEWIRE_SRC (psrc);
+  /* if we're being stopped/reconfigured, never signal fatal error. */
+  if (G_UNLIKELY (pwsrc->flushing)) {
+    GST_LOG_OBJECT (pwsrc, "flushing");
+    return GST_FLOW_FLUSHING;
+  }
 
   GstClockTime now = gst_util_get_timestamp ();
 
   /* add a small delay between frames to allow gtk4paintablesink to catch up */
-  if (last_push_time != 0) {
-    GstClockTime elapsed = now - last_push_time;
+  if (pwsrc->last_push_time != 0) {
+    GstClockTime elapsed = now - pwsrc->last_push_time;
 
-    if (elapsed < 10000000) {
+    if (elapsed < 10000000)
       g_usleep (10000);
-      GST_LOG_OBJECT (pwsrc, "Adding small delay to help sink keep up");
-    }
   }
 
   timestamp = gst_clock_get_time (GST_ELEMENT_CLOCK (GST_ELEMENT (psrc)));
@@ -197,12 +196,12 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
     buf = gst_pipewire_camera_get_latest_frame (pwsrc->camera);
 
     if (buf) {
-      if (last_buffer)
-        gst_buffer_unref(last_buffer);
-      last_buffer = gst_buffer_ref(buf);
-    } else if (last_buffer) {
+      /* replace per-instance last_buffer */
+      gst_buffer_replace (&pwsrc->last_buffer, buf);
+      /* pwsrc->last_buffer holds a ref output buf as-is */
+    } else if (pwsrc->last_buffer) {
       /* no new frame available, use the last frame */
-      buf = gst_buffer_ref (last_buffer);
+      buf = gst_buffer_ref (pwsrc->last_buffer);
       GST_LOG_OBJECT (pwsrc, "Reusing last valid frame");
     } else {
       /* no frame yet and no last frame, create a blank frame */
@@ -215,7 +214,7 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
         height = temp;
       }
 
-      guint size = width * height * 3 / 2; /* YUV 4:2:0 format */
+      size = width * height * 3 / 2; /* YUV 4:2:0 format (I420) */
       buf = gst_buffer_new_allocate (NULL, size, NULL);
       if (!buf) {
         GST_ERROR_OBJECT (pwsrc, "Failed to allocate buffer");
@@ -223,7 +222,10 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
       }
 
       GstMapInfo info;
-      gst_buffer_map (buf, &info, GST_MAP_WRITE);
+      if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
+        gst_buffer_unref (buf);
+        return GST_FLOW_ERROR;
+      }
 
       /* Y=16, U=V=128 */
       memset (info.data, 16, width * height); /* Y plane */
@@ -232,23 +234,32 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
       gst_buffer_unmap (buf, &info);
     }
 
+    if (G_UNLIKELY (pwsrc->flushing)) {
+      if (buf)
+        gst_buffer_unref (buf);
+      return GST_FLOW_FLUSHING;
+    }
+
     if (buf) {
       GST_BUFFER_PTS (buf) = timestamp;
       GST_BUFFER_DTS (buf) = GST_CLOCK_TIME_NONE;
 
-      if (GST_CLOCK_TIME_IS_VALID (previous_ts) && previous_ts != 0)
-        GST_BUFFER_DURATION (buf) = timestamp - previous_ts;
+      if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0)
+        GST_BUFFER_DURATION (buf) = timestamp - pwsrc->previous_ts;
       else
         /* default to 30fps if we don't know */
         GST_BUFFER_DURATION (buf) = GST_SECOND / 30;
 
       /* keep track of when we are pushing a frame */
-      previous_ts = timestamp;
-      last_push_time = now;
+      pwsrc->previous_ts = timestamp;
+      pwsrc->last_push_time = now;
 
       *buffer = buf;
       return GST_FLOW_OK;
     }
+
+    /* no buffer and no last buffer, treat as transient (camera switching / warming up) */
+    return GST_FLOW_FLUSHING;
   } else {
     /* fallback code for audio */
     size = 1024;
@@ -260,22 +271,25 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
     }
 
     GstMapInfo info;
-    gst_buffer_map(buf, &info, GST_MAP_WRITE);
+    if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
+      gst_buffer_unref (buf);
+      return GST_FLOW_ERROR;
+    }
 
-    memset(info.data, 0, info.size);
+    memset (info.data, 0, info.size);
 
-    gst_buffer_unmap(buf, &info);
+    gst_buffer_unmap (buf, &info);
 
     GST_BUFFER_PTS (buf) = timestamp;
     GST_BUFFER_DTS (buf) = GST_CLOCK_TIME_NONE;
 
-    if (GST_CLOCK_TIME_IS_VALID (previous_ts) && previous_ts != 0)
-      GST_BUFFER_DURATION (buf) = timestamp - previous_ts;
+    if (GST_CLOCK_TIME_IS_VALID (pwsrc->previous_ts) && pwsrc->previous_ts != 0)
+      GST_BUFFER_DURATION (buf) = timestamp - pwsrc->previous_ts;
     else
       GST_BUFFER_DURATION (buf) = GST_SECOND / 30;
 
-    previous_ts = timestamp;
-    last_push_time = now;
+    pwsrc->previous_ts = timestamp;
+    pwsrc->last_push_time = now;
   }
 
   *buffer = buf;
@@ -283,21 +297,30 @@ gst_pipewire_src_create (GstPushSrc *psrc, GstBuffer **buffer)
 }
 
 static gboolean
-gst_pipewire_src_start (GstBaseSrc *basesrc G_GNUC_UNUSED)
+gst_pipewire_src_start (GstBaseSrc *basesrc)
 {
+  GstPipeWireSrc *pwsrc = GST_PIPEWIRE_SRC (basesrc);
+
+  pwsrc->flushing = FALSE;
+  pwsrc->previous_ts = 0;
+  pwsrc->last_push_time = 0;
+
   return TRUE;
 }
 
 static gboolean
 gst_pipewire_src_stop (GstBaseSrc *basesrc)
 {
-  GstPipeWireSrc *pwsrc;
-
-  pwsrc = GST_PIPEWIRE_SRC (basesrc);
+  GstPipeWireSrc *pwsrc = GST_PIPEWIRE_SRC (basesrc);
 
   pwsrc->eos = false;
-  gst_buffer_replace(&pwsrc->last_buffer, NULL);
-  gst_caps_replace(&pwsrc->caps, NULL);
+  pwsrc->flushing = TRUE;
+
+  gst_buffer_replace (&pwsrc->last_buffer, NULL);
+  gst_caps_replace (&pwsrc->caps, NULL);
+
+  pwsrc->previous_ts = 0;
+  pwsrc->last_push_time = 0;
 
   return TRUE;
 }
@@ -462,9 +485,44 @@ gst_pipewire_src_set_property (GObject *object, guint prop_id,
     case PROP_USE_CAMERA:
       pwsrc->use_camera = g_value_get_boolean (value);
       break;
-    case PROP_CAMERA_ID:
-      pwsrc->camera_id = g_value_get_int (value);
+
+    case PROP_CAMERA_ID: {
+      gint new_id = g_value_get_int (value);
+
+      if (pwsrc->camera_id == new_id)
+        break;
+
+      GST_INFO_OBJECT (pwsrc, "camera-id changing %d -> %d", pwsrc->camera_id, new_id);
+      pwsrc->camera_id = new_id;
+
+      if (pwsrc->use_camera && pwsrc->camera) {
+        /* stop stream if running */
+        if (pwsrc->camera->is_running) {
+          GST_INFO_OBJECT (pwsrc, "Stopping camera stream for camera switch");
+          gst_pipewire_camera_stop_streaming (pwsrc->camera);
+        }
+
+        /* close and reopen with new id */
+        gst_pipewire_camera_close (pwsrc->camera);
+        pwsrc->camera->camera_id = pwsrc->camera_id;
+
+        gst_buffer_replace (&pwsrc->last_buffer, NULL);
+        pwsrc->previous_ts = 0;
+        pwsrc->last_push_time = 0;
+
+        if (!gst_pipewire_camera_open (pwsrc->camera)) {
+          GST_ERROR_OBJECT (pwsrc, "Failed to reopen camera with id %d", pwsrc->camera_id);
+        } else {
+          /* if element is at least PAUSED, restart streaming */
+          if (GST_STATE (pwsrc) >= GST_STATE_PAUSED) {
+            if (!gst_pipewire_camera_start_streaming (pwsrc->camera))
+              GST_ERROR_OBJECT (pwsrc, "Failed to restart camera streaming after id switch");
+          }
+        }
+      }
       break;
+    }
+
     case PROP_ORIENTATION:
       pwsrc->orientation = g_value_get_int (value);
       if (pwsrc->camera)
@@ -585,6 +643,25 @@ gst_pipewire_src_get_caps (GstBaseSrc *basesrc, GstCaps *filter)
   return caps;
 }
 
+static gboolean
+gst_pipewire_src_set_caps (GstBaseSrc *basesrc, GstCaps *caps)
+{
+  GstPipeWireSrc *pwsrc = GST_PIPEWIRE_SRC (basesrc);
+
+  GST_DEBUG_OBJECT (pwsrc, "set_caps %" GST_PTR_FORMAT, caps);
+
+  gst_caps_replace (&pwsrc->caps, caps);
+
+  if (pwsrc->use_camera && pwsrc->camera) {
+    if (!gst_pipewire_camera_set_format (pwsrc->camera, caps)) {
+      GST_ERROR_OBJECT (pwsrc, "camera refused caps %" GST_PTR_FORMAT, caps);
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
 static GstClock *
 gst_pipewire_src_provide_clock (GstElement *elem)
 {
@@ -615,11 +692,15 @@ gst_pipewire_src_finalize (GObject *object)
   GstPipeWireSrc *pwsrc = GST_PIPEWIRE_SRC (object);
 
   if (pwsrc->camera) {
-    gst_object_unref(pwsrc->camera);
+    gst_object_unref (pwsrc->camera);
     pwsrc->camera = NULL;
   }
 
   gst_clear_object (&pwsrc->stream);
+
+  gst_buffer_replace (&pwsrc->last_buffer, NULL);
+  gst_caps_replace (&pwsrc->caps, NULL);
+  gst_caps_replace (&pwsrc->possible_caps, NULL);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -639,7 +720,7 @@ on_state_changed (void *data, GstPipeWireStreamState old,
       break;
     case GST_PIPEWIRE_STREAM_STATE_STREAMING:
       if (pwsrc->stream->events.process)
-        pwsrc->stream->events.process(pwsrc);
+        pwsrc->stream->events.process (pwsrc);
       break;
     case GST_PIPEWIRE_STREAM_STATE_ERROR:
       GST_ELEMENT_ERROR (pwsrc, RESOURCE, FAILED,
@@ -790,13 +871,13 @@ gst_pipewire_src_fixate (GstBaseSrc *basesrc, GstCaps *caps)
       }
 
       if (!gst_structure_has_field (structure, "interlace-mode"))
-        gst_structure_set(structure, "interlace-mode", G_TYPE_STRING, "progressive", NULL);
+        gst_structure_set (structure, "interlace-mode", G_TYPE_STRING, "progressive", NULL);
 
       if (!gst_structure_has_field (structure, "pixel-aspect-ratio"))
-        gst_structure_set(structure, "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL);
+        gst_structure_set (structure, "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL);
 
       if (!gst_structure_has_field (structure, "colorimetry"))
-        gst_structure_set(structure, "colorimetry", G_TYPE_STRING, "bt709", NULL);
+        gst_structure_set (structure, "colorimetry", G_TYPE_STRING, "bt709", NULL);
     }
   }
 
@@ -974,7 +1055,6 @@ gst_pipewire_src_class_init (GstPipeWireSrcClass *klass)
                                                      G_PARAM_READWRITE |
                                                      G_PARAM_STATIC_STRINGS));
 
-
   g_object_class_install_property (gobject_class,
                                    PROP_USE_CAMERA,
                                    g_param_spec_boolean ("use-camera",
@@ -1005,6 +1085,7 @@ gst_pipewire_src_class_init (GstPipeWireSrcClass *klass)
       gst_static_pad_template_get (&gst_pipewire_src_template));
 
   gstbasesrc_class->get_caps = gst_pipewire_src_get_caps;
+  gstbasesrc_class->set_caps = gst_pipewire_src_set_caps;
   gstbasesrc_class->negotiate = gst_pipewire_src_negotiate;
   gstbasesrc_class->fixate = gst_pipewire_src_fixate;
   gstbasesrc_class->unlock = gst_pipewire_src_unlock;
@@ -1044,6 +1125,14 @@ gst_pipewire_src_init (GstPipeWireSrc *src)
   src->camera = NULL;
   src->orientation = 0;
   src->qos_delay = 0;
+
+  src->last_buffer = NULL;
+  src->previous_ts = 0;
+  src->last_push_time = 0;
+
+  src->flushing = FALSE;
+  src->negotiated = FALSE;
+  src->eos = FALSE;
 
   gst_base_src_set_blocksize (GST_BASE_SRC (src), 0);
   gst_base_src_set_do_timestamp (GST_BASE_SRC (src), TRUE);

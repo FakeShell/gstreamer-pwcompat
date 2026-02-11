@@ -63,7 +63,7 @@ gst_pipewire_stream_new (GstElement *element)
 
 gboolean
 gst_pipewire_stream_open (GstPipeWireStream *self,
-                             const GstPipeWireStreamEvents *events, void *data)
+                          const GstPipeWireStreamEvents *events, void *data)
 {
   g_return_val_if_fail (self->core == NULL, FALSE);
 
@@ -116,7 +116,7 @@ gst_pipewire_stream_get_state (GstPipeWireStream *self, const char **error)
 }
 
 void
-gst_pipewire_stream_set_active(GstPipeWireStream *self, gboolean active)
+gst_pipewire_stream_set_active (GstPipeWireStream *self, gboolean active)
 {
   GST_DEBUG_OBJECT (self, "set active: %d", active);
   self->active = active;
@@ -144,7 +144,7 @@ gst_pipewire_stream_set_active(GstPipeWireStream *self, gboolean active)
 }
 
 void
-gst_pipewire_stream_set_error(GstPipeWireStream *self, int res, const char *error, ...)
+gst_pipewire_stream_set_error (GstPipeWireStream *self, int res, const char *error, ...)
 {
   va_list args;
   gchar *message;
@@ -168,8 +168,8 @@ gst_pipewire_stream_set_error(GstPipeWireStream *self, int res, const char *erro
 }
 
 gboolean
-gst_pipewire_stream_connect(GstPipeWireStream *self, uint32_t target_id,
-                               uint32_t flags, GstCaps *caps)
+gst_pipewire_stream_connect (GstPipeWireStream *self, uint32_t target_id,
+                             uint32_t flags, GstCaps *caps)
 {
   GST_DEBUG_OBJECT (self, "connect, target_id: %u, flags: %u", target_id, flags);
 

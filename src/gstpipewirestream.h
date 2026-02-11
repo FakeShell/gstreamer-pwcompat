@@ -29,9 +29,9 @@ typedef enum {
 } GstPipeWireStreamState;
 
 typedef void (*GstPipeWireStreamStateChangedCb) (void *data, GstPipeWireStreamState old_state,
-                                                    GstPipeWireStreamState state, const char *error);
+                                                 GstPipeWireStreamState state, const char *error);
 typedef void (*GstPipeWireStreamParamChangedCb) (void *data, uint32_t id,
-                                                    GstCaps *caps);
+                                                 GstCaps *caps);
 typedef void (*GstPipeWireStreamProcessCb) (void *data);
 
 typedef struct {
@@ -68,15 +68,15 @@ struct _GstPipeWireStream {
 GstPipeWireStream * gst_pipewire_stream_new (GstElement *element);
 
 gboolean gst_pipewire_stream_open (GstPipeWireStream *self,
-                                      const GstPipeWireStreamEvents *events, void *data);
+                                   const GstPipeWireStreamEvents *events, void *data);
 void gst_pipewire_stream_close (GstPipeWireStream *self);
 
 GstPipeWireStreamState gst_pipewire_stream_get_state (GstPipeWireStream *self,
-                                                            const char **error);
+                                                      const char **error);
 void gst_pipewire_stream_set_active (GstPipeWireStream *self, gboolean active);
 void gst_pipewire_stream_set_error (GstPipeWireStream *self, int res, const char *error, ...);
 gboolean gst_pipewire_stream_connect (GstPipeWireStream *self, uint32_t target_id,
-                                         uint32_t flags, GstCaps *caps);
+                                      uint32_t flags, GstCaps *caps);
 void gst_pipewire_stream_disconnect (GstPipeWireStream *self);
 void gst_pipewire_stream_update_params (GstPipeWireStream *self, GstCaps *caps);
 
