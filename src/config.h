@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright © 2025 Bardia Moshiri
+ * SPDX-FileCopyrightText: Copyright © 2026 Bardia Moshiri
  * SPDX-License-Identifier: MIT
  */
 
