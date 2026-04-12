@@ -20,17 +20,26 @@ ifeq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), amd64))
 FLATPAK_ARCH = x86_64
 endif
 
-export FLATPAK_EXTENSION_INSTALL_DIR := debian/flatpak-extension-gstreamer-pwcompat/var/lib/flatpak/extension/org.freedesktop.Platform.GStreamer.pwcompat/$(FLATPAK_ARCH)/24.08
+FLATPAK_GSTREAMER_VERSIONS = 20.08 21.08 22.08 23.08 24.08 25.08
 
 %:
 	dh $@
 
 override_dh_auto_install:
+
 override_dh_install:
 	# we want to override mesons install target so that we can copy it elsewhere and use diversions
-	mkdir -p $(HOST_INSTALL_DIR) $(FLATPAK_EXTENSION_INSTALL_DIR)
+	mkdir -p $(HOST_INSTALL_DIR)
 	cp -f $(BUILD_DIR)/src/libgstpipewire.so $(HOST_INSTALL_DIR)/
-	cp $(BUILD_DIR)/src/libgstpipewire.so $(FLATPAK_EXTENSION_INSTALL_DIR)/
+
+	set -e; \
+	for ver in $(FLATPAK_GSTREAMER_VERSIONS); do \
+		install_dir=debian/flatpak-extension-gstreamer-pwcompat/var/lib/flatpak/extension/org.freedesktop.Platform.GStreamer.pwcompat/$(FLATPAK_ARCH)/$$ver; \
+		mkdir -p "$$install_dir"; \
+		cp -f $(BUILD_DIR)/src/libgstpipewire.so "$$install_dir"/; \
+	done
 
 override_dh_strip:
 	dh_strip -Nflatpak-extension-gstreamer-pwcompat
+
+override_dh_dwz:
